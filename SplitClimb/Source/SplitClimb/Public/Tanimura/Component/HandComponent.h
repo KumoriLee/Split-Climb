@@ -48,6 +48,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Hand")
 	void MoveHand(const FVector2D& InInput, float Speed, float MaxDistance, const FVector& ShoulderWorldLocation, float DeltaTime);
 
+	// 肩と掌の位置から手の向きを更新する
+	UFUNCTION(BlueprintCallable, Category = "Hand")
+	void UpdateHandRotation(const FVector& ShoulderWorldLocation, const FVector& PalmNormalWorld);
+
 	// 入力値を取得する
 	UFUNCTION(BlueprintPure, Category = "Hand")
 	FVector2D GetMoveInput() const;
