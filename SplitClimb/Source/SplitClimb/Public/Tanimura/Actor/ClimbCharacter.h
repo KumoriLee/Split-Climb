@@ -25,6 +25,30 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
+	// 左手の目標位置を取得する
+	UFUNCTION(BlueprintPure, Category = "Hand")
+	UHandComponent* GetLeftHand() const;
+
+	// 右手の目標位置を取得する
+	UFUNCTION(BlueprintPure, Category = "Hand")
+	UHandComponent* GetRightHand() const;
+
+	// 左肩のワールド位置を取得する
+	UFUNCTION(BlueprintPure, Category = "Hand")
+	FVector GetLeftShoulderWorldLocation() const;
+
+	// 右肩のワールド位置を取得する
+	UFUNCTION(BlueprintPure, Category = "Hand")
+	FVector GetRightShoulderWorldLocation() const;
+
+	// 左肘のターゲット位置を取得する
+	UFUNCTION(BlueprintPure, Category = "Hand")
+	FVector GetLeftJointTargetWorldLocation() const;
+
+	// 右肘のターゲット位置を取得する
+	UFUNCTION(BlueprintPure, Category = "Hand")
+	FVector GetRightJointTargetWorldLocation() const;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -43,6 +67,14 @@ protected:
 	// 右肩のボーン名
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand")
 	FName RightShoulderBoneName = TEXT("upperarm_r");
+
+	// 左肘の向きを決めるオフセット
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand")
+	FVector LeftJointTargetOffset = FVector(0.f, -40.f, -40.f);
+
+	// 右肘の向きを決めるオフセット
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand")
+	FVector RightJointTargetOffset = FVector(0.f, 40.f, -40.f);
 
 	// 左手の移動アクション
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")

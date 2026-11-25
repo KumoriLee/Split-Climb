@@ -30,6 +30,38 @@ AClimbCharacter::AClimbCharacter()
 	RightHand->SetRelativeLocation(FVector(0.f, 30.f, 50.f));
 }
 
+UHandComponent* AClimbCharacter::GetLeftHand() const
+{
+	return LeftHand.Get();
+}
+
+UHandComponent* AClimbCharacter::GetRightHand() const
+{
+	return RightHand.Get();
+}
+
+FVector AClimbCharacter::GetLeftShoulderWorldLocation() const
+{
+	return GetShoulderWorldLocation(true);
+}
+
+FVector AClimbCharacter::GetRightShoulderWorldLocation() const
+{
+	return GetShoulderWorldLocation(false);
+}
+
+FVector AClimbCharacter::GetLeftJointTargetWorldLocation() const
+{
+	const FVector Offset = GetActorRotation().RotateVector(LeftJointTargetOffset);
+	return GetShoulderWorldLocation(true) + Offset;
+}
+
+FVector AClimbCharacter::GetRightJointTargetWorldLocation() const
+{
+	const FVector Offset = GetActorRotation().RotateVector(RightJointTargetOffset);
+	return GetShoulderWorldLocation(false) + Offset;
+}
+
 void AClimbCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -110,6 +142,11 @@ void AClimbCharacter::UpdateHandMovement(float DeltaTime)
 
 	LeftHand->MoveHand(LeftHand->GetMoveInput(), Settings->HandMoveSpeed, Settings->MaxHandDistanceFromShoulder, LeftShoulderLocation, DeltaTime);
 	RightHand->MoveHand(RightHand->GetMoveInput(), Settings->HandMoveSpeed, Settings->MaxHandDistanceFromShoulder, RightShoulderLocation, DeltaTime);
+
+	// 掌の向きを肩から掌への方向と壁の法線から決める
+	const FVector PalmNormal = GetActorForwardVector();
+	LeftHand->UpdateHandRotation(LeftShoulderLocation, PalmNormal);
+	RightHand->UpdateHandRotation(RightShoulderLocation, PalmNormal);
 }
 
 FVector AClimbCharacter::GetShoulderWorldLocation(bool bLeft) const
