@@ -17,10 +17,10 @@ void UHandComponent::SetGrabHeld(bool bInGrabHeld)
 	bGrabHeld = bInGrabHeld;
 }
 
-void UHandComponent::MoveHand(const FVector2D& InInput, float Speed, float MaxDistance, const FVector& ShoulderWorldLocation, float DeltaTime)
+void UHandComponent::MoveHand(const FVector2D& InInput, float Speed, float MaxRadius, const FVector& ShoulderWorldLocation, float DeltaTime)
 {
 	// 入力が無い、または可動範囲が0なら移動しない
-	if (InInput.IsNearlyZero() || MaxDistance <= 0.f) {
+	if (InInput.IsNearlyZero() || MaxRadius <= 0.f) {
 		return;
 	}
 
@@ -29,30 +29,45 @@ void UHandComponent::MoveHand(const FVector2D& InInput, float Speed, float MaxDi
 	const FRotator BodyRotation = GetAttachParent() ? GetAttachParent()->GetComponentRotation() : GetComponentRotation();
 	AddWorldOffset(BodyRotation.RotateVector(LocalDelta) * Speed * DeltaTime);
 
-	// 肩から最大距離を超えた位置を境界に補正する
+	// 壁面内の可動半径を超えた位置を境界に補正する
 	FVector Offset = GetComponentLocation() - ShoulderWorldLocation;
-	if (Offset.SizeSquared() > FMath::Square(MaxDistance)) {
-		Offset = Offset.GetSafeNormal() * MaxDistance;
+	FVector PlaneOffset(0.f, Offset.Y, Offset.Z);
+
+	// 前後位置は変えず、左右と上下だけを半径に収める
+	if (PlaneOffset.SizeSquared() > FMath::Square(MaxRadius)) {
+		PlaneOffset = PlaneOffset.GetSafeNormal() * MaxRadius;
+		Offset.Y = PlaneOffset.Y;
+		Offset.Z = PlaneOffset.Z;
 		SetWorldLocation(ShoulderWorldLocation + Offset);
 	}
 }
 
-void UHandComponent::UpdateHandRotation(const FVector& ShoulderWorldLocation, const FVector& PalmNormalWorld)
+void UHandComponent::UpdateHandRotation(const FVector& ShoulderWorldLocation, const FVector& PalmNormalWorld, const FRotator& RotationOffset)
 {
-	const FVector HandLocation = GetComponentLocation();
-	FVector FingerDirection = (HandLocation - ShoulderWorldLocation).GetSafeNormal();
+	FVector PalmNormal = PalmNormalWorld.GetSafeNormal();
 
-	// 掌が肩と同じ位置にある場合は上方向を指す
-	if (FingerDirection.IsNearlyZero()) {
-		FingerDirection = FVector::UpVector;
-	}
-
-	// 掌の法線を指先方向に直交化する
-	FVector PalmNormal = PalmNormalWorld - FingerDirection * FVector::DotProduct(PalmNormalWorld, FingerDirection);
+	// 掌の法線が未設定の場合は前方向を基準にする
 	if (PalmNormal.IsNearlyZero()) {
-		PalmNormal = FVector::UpVector - FingerDirection * FVector::DotProduct(FVector::UpVector, FingerDirection);
+		PalmNormal = FVector::ForwardVector;
 	}
-	PalmNormal = PalmNormal.GetSafeNormal();
+
+	const FVector HandLocation = GetComponentLocation();
+
+	// 肩から掌への方向を壁面へ投影する
+	FVector FingerDirection = HandLocation - ShoulderWorldLocation;
+	FingerDirection -= PalmNormal * FVector::DotProduct(FingerDirection, PalmNormal);
+	FingerDirection = FingerDirection.GetSafeNormal();
+
+	// 肩と掌が同じ位置にある場合は上方向を壁面へ投影する
+	if (FingerDirection.IsNearlyZero()) {
+		FVector FallbackDirection = FVector::UpVector;
+		FallbackDirection -= PalmNormal * FVector::DotProduct(FallbackDirection, PalmNormal);
+		if (FallbackDirection.IsNearlyZero()) {
+			FallbackDirection = FVector::ForwardVector;
+			FallbackDirection -= PalmNormal * FVector::DotProduct(FallbackDirection, PalmNormal);
+		}
+		FingerDirection = FallbackDirection.GetSafeNormal();
+	}
 
 	FVector XAxis;
 	FVector YAxis;
@@ -67,7 +82,8 @@ void UHandComponent::UpdateHandRotation(const FVector& ShoulderWorldLocation, co
 	}
 
 	const FMatrix RotationMatrix = FRotationMatrix::MakeFromXY(XAxis, YAxis);
-	SetWorldRotation(RotationMatrix.Rotator());
+	const FQuat FinalRotation = RotationMatrix.ToQuat() * RotationOffset.Quaternion();
+	SetWorldRotation(FinalRotation.Rotator());
 }
 
 FVector2D UHandComponent::GetMoveInput() const

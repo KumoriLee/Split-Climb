@@ -66,6 +66,14 @@ void AClimbCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// 掌の初期位置を設定する
+	if (LeftHand) {
+		LeftHand->SetRelativeLocation(LeftHandInitialLocation);
+	}
+	if (RightHand) {
+		RightHand->SetRelativeLocation(RightHandInitialLocation);
+	}
+
 	// 設定アセットが無い場合はクラス既定値を使う
 	if (!ClimbSettings.Get()) {
 		UE_LOG(LogTemp, Warning, TEXT("ClimbSettings is not assigned. Using class defaults."));
@@ -140,13 +148,13 @@ void AClimbCharacter::UpdateHandMovement(float DeltaTime)
 	const FVector LeftShoulderLocation = GetShoulderWorldLocation(true);
 	const FVector RightShoulderLocation = GetShoulderWorldLocation(false);
 
-	LeftHand->MoveHand(LeftHand->GetMoveInput(), Settings->HandMoveSpeed, Settings->MaxHandDistanceFromShoulder, LeftShoulderLocation, DeltaTime);
-	RightHand->MoveHand(RightHand->GetMoveInput(), Settings->HandMoveSpeed, Settings->MaxHandDistanceFromShoulder, RightShoulderLocation, DeltaTime);
+	LeftHand->MoveHand(LeftHand->GetMoveInput(), Settings->HandMoveSpeed, Settings->MaxHandMoveRadius, LeftShoulderLocation, DeltaTime);
+	RightHand->MoveHand(RightHand->GetMoveInput(), Settings->HandMoveSpeed, Settings->MaxHandMoveRadius, RightShoulderLocation, DeltaTime);
 
 	// 掌の向きを肩から掌への方向と壁の法線から決める
-	const FVector PalmNormal = GetActorForwardVector();
-	LeftHand->UpdateHandRotation(LeftShoulderLocation, PalmNormal);
-	RightHand->UpdateHandRotation(RightShoulderLocation, PalmNormal);
+	const FVector PalmNormal = GetActorTransform().TransformVectorNoScale(PalmNormalDirection).GetSafeNormal();
+	LeftHand->UpdateHandRotation(LeftShoulderLocation, PalmNormal, LeftHandRotationOffset);
+	RightHand->UpdateHandRotation(RightShoulderLocation, PalmNormal, RightHandRotationOffset);
 }
 
 FVector AClimbCharacter::GetShoulderWorldLocation(bool bLeft) const
@@ -274,10 +282,14 @@ void AClimbCharacter::DrawHandDebug() const
 		Settings = GetDefault<UClimbSettings>();
 	}
 
-	// 肩ボーンを中心に可動範囲を表示する
-	const float MaxDistance = Settings->MaxHandDistanceFromShoulder;
-	DrawDebugSphere(GetWorld(), GetShoulderWorldLocation(true), MaxDistance, 16, FColor::Cyan, false, -1.f, SDPG_World, 0.5f);
-	DrawDebugSphere(GetWorld(), GetShoulderWorldLocation(false), MaxDistance, 16, FColor::Orange, false, -1.f, SDPG_World, 0.5f);
+	// 壁面内の可動範囲を表示する
+	const float MaxRadius = Settings->MaxHandMoveRadius;
+	const FVector LeftShoulderLocation = GetShoulderWorldLocation(true);
+	const FVector RightShoulderLocation = GetShoulderWorldLocation(false);
+	const FVector LeftCenter(LeftHand->GetComponentLocation().X, LeftShoulderLocation.Y, LeftShoulderLocation.Z);
+	const FVector RightCenter(RightHand->GetComponentLocation().X, RightShoulderLocation.Y, RightShoulderLocation.Z);
+	DrawDebugCircle(GetWorld(), LeftCenter, MaxRadius, 32, FColor::Cyan, false, -1.f, SDPG_World, 0.5f, FVector::RightVector, FVector::UpVector, false);
+	DrawDebugCircle(GetWorld(), RightCenter, MaxRadius, 32, FColor::Orange, false, -1.f, SDPG_World, 0.5f, FVector::RightVector, FVector::UpVector, false);
 
 	// 掌の目標位置を球で表示する
 	DrawDebugSphere(GetWorld(), LeftHand->GetComponentLocation(), 6.f, 12, FColor::Cyan, false, -1.f, SDPG_Foreground, 1.f);
