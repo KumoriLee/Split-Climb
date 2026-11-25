@@ -2,6 +2,9 @@
 
 #include "Lee/LeeSplitClimbMapEditorModule.h"
 #include "Lee/LeeMapEditorTool.h"
+// 2026.11.25 Lee start
+#include "Engine/StaticMesh.h"
+// 2026.11.25 Lee end
 
 #include "Types/SlateEnums.h"
 #include "Styling/CoreStyle.h"
@@ -452,6 +455,18 @@ void SLeeMapEditorPanel::Construct(const FArguments& InArgs, TSharedRef<FLeeMapE
 		[
 			MakeSectionHeader(NSLOCTEXT("SplitClimbMapEditor", "SectionRock", "原生放置（LP_RocksandCliffs）"))
 		]
+		// 2026.11.25 Lee start
+		+ SScrollBox::Slot().Padding(6.0f, 0.0f, 6.0f, 4.0f)
+		[
+			SNew(SButton)
+			.Text(NSLOCTEXT("SplitClimbMapEditor", "OpenRockLibrary", "打开岩壁素材窗口"))
+			.OnClicked_Lambda([]
+			{
+				FGlobalTabmanager::Get()->TryInvokeTab(LeeMapEditor::RockLibraryTabID);
+				return FReply::Handled();
+			})
+		]
+		// 2026.11.25 Lee end
 		+ SScrollBox::Slot().Padding(6.0f, 0.0f, 6.0f, 4.0f)
 		[
 			SNew(SComboBox<FLeeRockEntryPtr>)
@@ -536,6 +551,12 @@ void SLeeMapEditorPanel::UpdateDynamicText()
 	// 2026.11.19 Lee end
 
 	SizeText->SetText(FText::FromString(FString::Printf(TEXT("当前尺寸（宽×厚×高）：%.0f × %.0f × %.0f cm"), CurrentSize.X, CurrentSize.Y, CurrentSize.Z)));
+	// 2026.11.25 Lee start
+	const UStaticMesh* CurrentRockMesh = Tool->GetRockMesh();
+	RockComboText->SetText(CurrentRockMesh
+		? FText::FromName(CurrentRockMesh->GetFName())
+		: NSLOCTEXT("SplitClimbMapEditor", "RockCurrent", "选择岩体资产"));
+	// 2026.11.25 Lee end
 	ResultText->SetText(FText::FromString(Tool->BuildStatusText()));
 
 	// 測量表示
@@ -737,7 +758,9 @@ void SLeeMapEditorPanel::HandleRockSelected(FLeeRockEntryPtr InEntry, ESelectInf
 	if (InEntry.IsValid())
 	{
 		Tool->SetRockMesh(*InEntry);
-		RockComboText->SetText(FText::FromString(FString::Printf(TEXT("%s · %s"), *InEntry->CategoryLabel.ToString(), *InEntry->MeshName)));
+		// 2026.11.25 Lee start
+		// RockComboText->SetText(FText::FromString(FString::Printf(TEXT("%s · %s"), *InEntry->CategoryLabel.ToString(), *InEntry->MeshName)));
+		// 2026.11.25 Lee end
 	}
 	UpdateDynamicText();
 }

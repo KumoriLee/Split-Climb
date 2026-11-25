@@ -58,6 +58,10 @@ namespace LeeMapEditor
 
 	/** @brief パネルのタブ ID。 */
 	static const FName TabID = FName(TEXT("LeeSplitClimbMapEditorPanel"));
+	// 2026.11.25 Lee start
+	/** @brief 岩壁素材タブを識別する。 */
+	static const FName RockLibraryTabID(TEXT("LeeSplitClimbRockLibrary"));
+	// 2026.11.25 Lee end
 
 	/** @brief 強抓点のタグ名。 */
 	static const FName HoldStrongTag = FName(TEXT("GripStrong"));

@@ -20,6 +20,11 @@ public class SplitClimbMapEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"UnrealEd",
+			// 2026.11.25 Lee start
+			"AssetRegistry",
+			"ContentBrowser",
+			"PropertyEditor",
+			// 2026.11.25 Lee end
 			"EditorFramework",
 			"PlacementMode",
 			"ToolMenus",

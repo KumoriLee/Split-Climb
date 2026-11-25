@@ -57,6 +57,45 @@ namespace
 			default: return TEXT("Default");
 		}
 	}
+
+	// 2026.11.25 Lee start
+	/** @brief 主攀爬面の法線に許容する ±X からの最大角度（度）。境界値を含む（閾値の単一ソース）。 */
+	constexpr double MainFaceMaxAngleDeg = 30.0;
+
+	/**
+	 * @brief 主攀爬面が世界 YZ 平面に平行かを判定する（法線が ±X の許容角内）。
+	 *        制約の対象は局所的な落点・盒体の朝向（アンカー法線＝盒体ローカル Y の向き）であり、
+	 *        岩壁全体の設置が正しいことを保証するものではない。
+	 *        非有限法線は ContainsNaN() で先に拒否し、安全な単位法線の |X| と
+	 *        cos(許容角) を比較する。+X と -X の両方向を許し、ちょうど許容角の境界値も合格とする。
+	 * @param InNormal 面法線（ワールド。FLeeSurfaceAnchor::Normal を想定）。
+	 * @return 法線が ±X となす角が許容角以下なら true。
+	 */
+	bool IsMainFaceWithinTolerance(const FVector& InNormal)
+	{
+		if (InNormal.ContainsNaN())
+		{
+			return false;
+		}
+		const FVector SafeNormal = InNormal.GetSafeNormal();
+		if (SafeNormal.IsNearlyZero())
+		{
+			// 無効な法線（ゼロ近傍）は拒否する
+			return false;
+		}
+		return FMath::Abs(SafeNormal.X) >= FMath::Cos(FMath::DegreesToRadians(MainFaceMaxAngleDeg));
+	}
+
+	/**
+	 * @brief 主攀爬面チェックの統一不合格文を生成する（エディタツール文字は中国語）。
+	 *        適用拒否メッセージとパネル状態表示で共用し、閾値は MainFaceMaxAngleDeg の単一ソース。
+	 * @return 「抓点朝向偏离世界 ±X 超过 30°…」形式の説明文。
+	 */
+	FString MainFaceCheckRejectText()
+	{
+		return FString::Printf(TEXT("抓点朝向偏离世界 ±X 超过 %.0f°。请将主攀爬面对齐世界 YZ 平面，或重新选面。"), MainFaceMaxAngleDeg);
+	}
+	// 2026.11.25 Lee end
 }
 
 FLeeMapEditorTool::FLeeMapEditorTool()
@@ -440,6 +479,16 @@ bool FLeeMapEditorTool::HandleCapturedMouseMove(FEditorViewportClient* InViewpor
 		return false;
 	}
 
+	// 2026.11.25 Lee start
+	// 抓点モード時のみ：命中してアンカーを更新した後に合否を比較し、変化した時だけパネルへ通知する
+	// （毎フレームのブロードキャスト回避。岩体モードでは比較も通知も行わない）
+	const bool bHoldPlacement = (PlacementKind == LeeMapEditor::ELeePlacementKind::Hold);
+	bool bFaceCheckPassedBefore = false;
+	if (bHoldPlacement)
+	{
+		bFaceCheckPassedBefore = IsMainFaceWithinTolerance(Anchor.Normal);
+	}
+	// 2026.11.25 Lee end
 	FHitResult Hit;
 	if (TraceFromScreen(InViewportClient, InViewport, InMouseX, InMouseY, /*bPickHolds*/ false, Hit)
 		&& Hit.Component == Anchor.Component)
@@ -450,6 +499,12 @@ bool FLeeMapEditorTool::HandleCapturedMouseMove(FEditorViewportClient* InViewpor
 		Anchor.RecomputeAxes();
 		LastCheck.bRan = false;
 		RefreshMeasurements();
+		// 2026.11.25 Lee start
+		if (bHoldPlacement && IsMainFaceWithinTolerance(Anchor.Normal) != bFaceCheckPassedBefore)
+		{
+			NotifyChanged();
+		}
+		// 2026.11.25 Lee end
 	}
 	// 空振り・別コンポーネントの場合は最後の有効なプレビューを保持する
 	return true;
@@ -689,6 +744,15 @@ FString FLeeMapEditorTool::ApplyHold()
 	{
 		return TEXT("预览变换无效");
 	}
+
+	// 2026.11.25 Lee start
+	// 主攀爬面チェック：プレビュー変換の検証後・トランザクションと一切の変更前に同一規則で拒否する。
+	// 拒否時もプレビューを保持するため、パラメータ調整や面の選び直しが可能（新規・既存編集の両方に適用）
+	if (!IsMainFaceWithinTolerance(Anchor.Normal))
+	{
+		return FString::Printf(TEXT("拒绝应用：%s"), *MainFaceCheckRejectText());
+	}
+	// 2026.11.25 Lee end
 
 	UClass* HoldClass = ResolveHoldClass();
 	if (!HoldClass)
@@ -1251,6 +1315,22 @@ FString FLeeMapEditorTool::BuildStatusText()
 		}
 		StatusText += FString::Printf(TEXT("拾取模式：%s\n"), PickHint);
 	}
+
+	// 2026.11.25 Lee start
+	// 主攀爬面チェック：抓点モードかつプレビュー表示中（アンカー有効）に合否を表示する。
+	// 不合格文は MainFaceCheckRejectText() の単一ソースから生成する
+	if (PlacementKind == LeeMapEditor::ELeePlacementKind::Hold && bPreviewActive && Anchor.bValid)
+	{
+		if (IsMainFaceWithinTolerance(Anchor.Normal))
+		{
+			StatusText += TEXT("抓点朝向检查：通过\n");
+		}
+		else
+		{
+			StatusText += FString::Printf(TEXT("抓点朝向检查：未通过——%s\n"), *MainFaceCheckRejectText());
+		}
+	}
+	// 2026.11.25 Lee end
 
 	if (bUsingFallbackHoldClass)
 	{
