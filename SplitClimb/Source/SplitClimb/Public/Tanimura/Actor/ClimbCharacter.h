@@ -60,6 +60,14 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Hand")
 	TObjectPtr<UHandComponent> RightHand;
 
+	// 左手の初期位置（カプセル基準）
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand")
+	FVector LeftHandInitialLocation = FVector(0.f, -30.f, 50.f);
+
+	// 右手の初期位置（カプセル基準）
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand")
+	FVector RightHandInitialLocation = FVector(0.f, 30.f, 50.f);
+
 	// 左肩のボーン名
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand")
 	FName LeftShoulderBoneName = TEXT("upperarm_l");
@@ -75,6 +83,18 @@ protected:
 	// 右肘の向きを決めるオフセット
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand")
 	FVector RightJointTargetOffset = FVector(0.f, 40.f, -40.f);
+
+	// 掌の法線の基準方向（キャラクターのローカル空間）
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand")
+	FVector PalmNormalDirection = FVector(1.f, 0.f, 0.f);
+
+	// 左手の回転補正
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand")
+	FRotator LeftHandRotationOffset = FRotator::ZeroRotator;
+
+	// 右手の回転補正
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand")
+	FRotator RightHandRotationOffset = FRotator::ZeroRotator;
 
 	// 左手の移動アクション
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")

@@ -18,9 +18,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand", meta = (ClampMin = "0.0"))
 	float HandMoveSpeed = 300.f;
 
-	// 掌と肩の最大距離
+	// 壁面内の可動半径
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hand", meta = (ClampMin = "0.0"))
-	float MaxHandDistanceFromShoulder = 80.f;
+	float MaxHandMoveRadius = 75.f;
 
 	// 腕ごとの最大体力
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stamina", meta = (ClampMin = "0.0"))
