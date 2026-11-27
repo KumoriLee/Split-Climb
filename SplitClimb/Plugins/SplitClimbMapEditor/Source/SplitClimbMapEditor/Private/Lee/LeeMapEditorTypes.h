@@ -102,8 +102,19 @@ namespace LeeMapEditor
 		FVector AxisV = FVector::YAxisVector;          //!< 接線・縦方向（面内・上向き基準）
 		bool bValid = false;                           //!< 有効フラグ
 
-		/** @brief 法線から接線座標系（AxisU / AxisV）を再計算する。 */
-		void RecomputeAxes()
+		// 2026.11.27 李奕勋 start
+		/**
+		 * @brief 法線から接線座標系（AxisU / AxisV）を再計算する。
+		 *        bForHoldPlacement = true のときは抓点用：床・天井に近い面（|N・世界Up| >= 0.999）でも
+		 *        V = normalize(世界X × N)、U = N × V の右手系基底を採る。
+		 *        行を (U, N, V) の順で並べたとき U × N = V が恒等的に成り立つため、
+		 *        抓点盒体の +Y は面法線へ正確に一致し、負スケール（鏡像）も発生しない。
+		 *        ±Z いずれの法線、X/Y いずれ方向への傾きでも右手系を保つ。
+		 *        bForHoldPlacement = false のときは岩体配置用に従来アルゴリズムを維持する。
+		 * @param bForHoldPlacement 抓点の配置・編集フローからの呼び出しかどうか。
+		 */
+		//void RecomputeAxes()
+		void RecomputeAxes(bool bForHoldPlacement)
 		{
 			const FVector Up = FVector::ZAxisVector;
 			const double DotNUp = FVector::DotProduct(Normal, Up);
@@ -113,6 +124,18 @@ namespace LeeMapEditor
 				AxisV = (Up - Normal * DotNUp).GetSafeNormal();
 				AxisU = FVector::CrossProduct(Normal, AxisV);
 			}
+			// 2026.11.27 李奕勋 start
+			else if (bForHoldPlacement)
+			{
+				// 抓点の床・天井面：旧方式（U = 世界X、V = N × U）は U × N = −V で
+				// 行 (U, N, V) の行列式が負（鏡像）になり、N が X 方向に傾くと U·N ≠ 0 で
+				// +Y が法線からずれていた。V = 世界X × N、U = N × V なら
+				// U ⊥ N と右手系が恒等的に保証される。この分岐では N はほぼ ±Z のため
+				// 世界X × N が縮退することはない
+				AxisV = FVector::CrossProduct(FVector::XAxisVector, Normal).GetSafeNormal();
+				AxisU = FVector::CrossProduct(Normal, AxisV);
+			}
+			// 2026.11.27 李奕勋 end
 			else
 			{
 				// 床・天井面：横軸を世界 X から採る
@@ -122,6 +145,7 @@ namespace LeeMapEditor
 			// Component は任意（懸空抓点も面データだけでプレビュー可能）
 			bValid = !Normal.IsNearlyZero() && !AxisU.IsNearlyZero() && !AxisV.IsNearlyZero();
 		}
+		// 2026.11.27 李奕勋 end
 
 		/** @brief アンカーを無効化する。 */
 		void Reset()

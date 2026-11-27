@@ -59,42 +59,49 @@ namespace
 	}
 
 	// 2026.11.25 Lee start
+	// 2026.11.27 李奕勋 start
+	/**
+	 * @brief 朝向ロック（世界 ±X への吸附・30° 適用拦截・パネル表示）の撤回に伴い、
+	 *        下記の主攀爬面チェックは参照元が無くなったためコメント化して保持する。
+	 *        元のコードは消さない。
+	 */
 	/** @brief 主攀爬面の法線に許容する ±X からの最大角度（度）。境界値を含む（閾値の単一ソース）。 */
-	constexpr double MainFaceMaxAngleDeg = 30.0;
+	//constexpr double MainFaceMaxAngleDeg = 30.0;
 
-	/**
-	 * @brief 主攀爬面が世界 YZ 平面に平行かを判定する（法線が ±X の許容角内）。
-	 *        制約の対象は局所的な落点・盒体の朝向（アンカー法線＝盒体ローカル Y の向き）であり、
-	 *        岩壁全体の設置が正しいことを保証するものではない。
-	 *        非有限法線は ContainsNaN() で先に拒否し、安全な単位法線の |X| と
-	 *        cos(許容角) を比較する。+X と -X の両方向を許し、ちょうど許容角の境界値も合格とする。
-	 * @param InNormal 面法線（ワールド。FLeeSurfaceAnchor::Normal を想定）。
-	 * @return 法線が ±X となす角が許容角以下なら true。
-	 */
-	bool IsMainFaceWithinTolerance(const FVector& InNormal)
-	{
-		if (InNormal.ContainsNaN())
-		{
-			return false;
-		}
-		const FVector SafeNormal = InNormal.GetSafeNormal();
-		if (SafeNormal.IsNearlyZero())
-		{
-			// 無効な法線（ゼロ近傍）は拒否する
-			return false;
-		}
-		return FMath::Abs(SafeNormal.X) >= FMath::Cos(FMath::DegreesToRadians(MainFaceMaxAngleDeg));
-	}
+	///**
+	// * @brief 主攀爬面が世界 YZ 平面に平行かを判定する（法線が ±X の許容角内）。
+	// *        制約の対象は局所的な落点・盒体の朝向（アンカー法線＝盒体ローカル Y の向き）であり、
+	// *        岩壁全体の設置が正しいことを保証するものではない。
+	// *        非有限法線は ContainsNaN() で先に拒否し、安全な単位法線の |X| と
+	// *        cos(許容角) を比較する。+X と -X の両方向を許し、ちょうど許容角の境界値も合格とする。
+	// * @param InNormal 面法線（ワールド。FLeeSurfaceAnchor::Normal を想定）。
+	// * @return 法線が ±X となす角が許容角以下なら true。
+	// */
+	//bool IsMainFaceWithinTolerance(const FVector& InNormal)
+	//{
+	//	if (InNormal.ContainsNaN())
+	//	{
+	//		return false;
+	//	}
+	//	const FVector SafeNormal = InNormal.GetSafeNormal();
+	//	if (SafeNormal.IsNearlyZero())
+	//	{
+	//		// 無効な法線（ゼロ近傍）は拒否する
+	//		return false;
+	//	}
+	//	return FMath::Abs(SafeNormal.X) >= FMath::Cos(FMath::DegreesToRadians(MainFaceMaxAngleDeg));
+	//}
 
-	/**
-	 * @brief 主攀爬面チェックの統一不合格文を生成する（エディタツール文字は中国語）。
-	 *        適用拒否メッセージとパネル状態表示で共用し、閾値は MainFaceMaxAngleDeg の単一ソース。
-	 * @return 「抓点朝向偏离世界 ±X 超过 30°…」形式の説明文。
-	 */
-	FString MainFaceCheckRejectText()
-	{
-		return FString::Printf(TEXT("抓点朝向偏离世界 ±X 超过 %.0f°。请将主攀爬面对齐世界 YZ 平面，或重新选面。"), MainFaceMaxAngleDeg);
-	}
+	///**
+	// * @brief 主攀爬面チェックの統一不合格文を生成する（エディタツール文字は中国語）。
+	// *        適用拒否メッセージとパネル状態表示で共用し、閾値は MainFaceMaxAngleDeg の単一ソース。
+	// * @return 「抓点朝向偏离世界 ±X 超过 30°…」形式の説明文。
+	// */
+	//FString MainFaceCheckRejectText()
+	//{
+	//	return FString::Printf(TEXT("抓点朝向偏离世界 ±X 超过 %.0f°。请将主攀爬面对齐世界 YZ 平面，或重新选面。"), MainFaceMaxAngleDeg);
+	//}
+	// 2026.11.27 李奕勋 end
 	// 2026.11.25 Lee end
 }
 
@@ -482,12 +489,18 @@ bool FLeeMapEditorTool::HandleCapturedMouseMove(FEditorViewportClient* InViewpor
 	// 2026.11.25 Lee start
 	// 抓点モード時のみ：命中してアンカーを更新した後に合否を比較し、変化した時だけパネルへ通知する
 	// （毎フレームのブロードキャスト回避。岩体モードでは比較も通知も行わない）
-	const bool bHoldPlacement = (PlacementKind == LeeMapEditor::ELeePlacementKind::Hold);
-	bool bFaceCheckPassedBefore = false;
-	if (bHoldPlacement)
-	{
-		bFaceCheckPassedBefore = IsMainFaceWithinTolerance(Anchor.Normal);
-	}
+	// 2026.11.27 李奕勋 start
+	/**
+	 * @brief 朝向ロック撤回に伴い、ドラッグ中の主攀爬面チェック合否の比較と通知を止めた。
+	 *        元のコードは消さない。
+	 */
+	//const bool bHoldPlacement = (PlacementKind == LeeMapEditor::ELeePlacementKind::Hold);
+	//bool bFaceCheckPassedBefore = false;
+	//if (bHoldPlacement)
+	//{
+	//	bFaceCheckPassedBefore = IsMainFaceWithinTolerance(Anchor.Normal);
+	//}
+	// 2026.11.27 李奕勋 end
 	// 2026.11.25 Lee end
 	FHitResult Hit;
 	if (TraceFromScreen(InViewportClient, InViewport, InMouseX, InMouseY, /*bPickHolds*/ false, Hit)
@@ -496,14 +509,21 @@ bool FLeeMapEditorTool::HandleCapturedMouseMove(FEditorViewportClient* InViewpor
 		// 同一コンポーネント上のみ追従する。面法線はヒットごとに更新する
 		Anchor.Point = Hit.ImpactPoint;
 		Anchor.Normal = Hit.ImpactNormal.GetSafeNormal();
-		Anchor.RecomputeAxes();
+		// 2026.11.27 李奕勋 start
+		// ドラッグ再貼り付け：現在の配置種別を渡し、抓点モードでは近水平面でも右手系の面内基底を使う
+		//Anchor.RecomputeAxes();←元のコードは消さない
+		Anchor.RecomputeAxes(PlacementKind == LeeMapEditor::ELeePlacementKind::Hold);
+		// 2026.11.27 李奕勋 end
 		LastCheck.bRan = false;
 		RefreshMeasurements();
 		// 2026.11.25 Lee start
-		if (bHoldPlacement && IsMainFaceWithinTolerance(Anchor.Normal) != bFaceCheckPassedBefore)
-		{
-			NotifyChanged();
-		}
+		// 2026.11.27 李奕勋 start
+		// ドラッグ中の合否比較による通知は撤回。元のコードは消さない
+		//if (bHoldPlacement && IsMainFaceWithinTolerance(Anchor.Normal) != bFaceCheckPassedBefore)
+		//{
+		//	NotifyChanged();
+		//}
+		// 2026.11.27 李奕勋 end
 		// 2026.11.25 Lee end
 	}
 	// 空振り・別コンポーネントの場合は最後の有効なプレビューを保持する
@@ -639,8 +659,11 @@ void FLeeMapEditorTool::ClearAttachOverride()
 	AttachOverride = nullptr;
 	if (Anchor.bValid)
 	{
-		Anchor.Component = nullptr;
-		Anchor.RecomputeAxes();
+		// 2026.11.27 李奕勋 start
+		// 貼り付け先の明示解除：現在の配置種別に応じて近水平基底を選ぶ
+		//Anchor.RecomputeAxes();←元のコードは消さない
+		Anchor.RecomputeAxes(PlacementKind == LeeMapEditor::ELeePlacementKind::Hold);
+		// 2026.11.27 李奕勋 end
 	}
 	NotifyChanged();
 }
@@ -748,10 +771,16 @@ FString FLeeMapEditorTool::ApplyHold()
 	// 2026.11.25 Lee start
 	// 主攀爬面チェック：プレビュー変換の検証後・トランザクションと一切の変更前に同一規則で拒否する。
 	// 拒否時もプレビューを保持するため、パラメータ調整や面の選び直しが可能（新規・既存編集の両方に適用）
-	if (!IsMainFaceWithinTolerance(Anchor.Normal))
-	{
-		return FString::Printf(TEXT("拒绝应用：%s"), *MainFaceCheckRejectText());
-	}
+	// 2026.11.27 李奕勋 start
+	/**
+	 * @brief 朝向ロック撤回に伴い、適用時の主攀爬面チェック（30° 拒否）を止めた。
+	 *        元のコードは消さない。
+	 */
+	//if (!IsMainFaceWithinTolerance(Anchor.Normal))
+	//{
+	//	return FString::Printf(TEXT("拒绝应用：%s"), *MainFaceCheckRejectText());
+	//}
+	// 2026.11.27 李奕勋 end
 	// 2026.11.25 Lee end
 
 	UClass* HoldClass = ResolveHoldClass();
@@ -920,7 +949,11 @@ FString FLeeMapEditorTool::StartEditHold(AActor* InHoldActor)
 	Anchor.Normal = AxisN;
 	Anchor.Point = Center - AxisN * (Size.Y * 0.5);
 	Anchor.Component = Cast<UPrimitiveComponent>(RootComp->GetAttachParent());
-	Anchor.RecomputeAxes();
+	// 2026.11.27 李奕勋 start
+	// 既存抓点の編集読み出しは常に抓点基準：近水平面でも右手系の面内基底を使う（明示的に true）
+	//Anchor.RecomputeAxes();←元のコードは消さない
+	Anchor.RecomputeAxes(true);
+	// 2026.11.27 李奕勋 end
 
 	OffsetU = 0.0;
 	OffsetV = 0.0;
@@ -933,7 +966,12 @@ FString FLeeMapEditorTool::StartEditHold(AActor* InHoldActor)
 	// 既存回転角を接線系へ復元
 	const FVector AxisXBox = RootQuat.GetAxisX();
 	const double CosAngle = FVector::DotProduct(AxisXBox, Anchor.AxisU);
-	const double SinAngle = FVector::DotProduct(AxisXBox, Anchor.AxisV);
+	// 2026.11.27 李奕勋 start
+	// プレビュー側は U' = U cosθ - V sinθ で回すため、盒体ローカル X と V の内積は -sinθ に一致する。
+	// 既存インスタンスから AngleDeg を読み戻すときは符号を反転し、再適用しても同じ姿勢に戻るようにする
+	//const double SinAngle = FVector::DotProduct(AxisXBox, Anchor.AxisV);
+	const double SinAngle = -FVector::DotProduct(AxisXBox, Anchor.AxisV);
+	// 2026.11.27 李奕勋 end
 	AngleDeg = FMath::UnwindDegrees(FMath::RadiansToDegrees(FMath::Atan2(SinAngle, CosAngle)));
 
 	bPreviewActive = true;
@@ -1319,17 +1357,23 @@ FString FLeeMapEditorTool::BuildStatusText()
 	// 2026.11.25 Lee start
 	// 主攀爬面チェック：抓点モードかつプレビュー表示中（アンカー有効）に合否を表示する。
 	// 不合格文は MainFaceCheckRejectText() の単一ソースから生成する
-	if (PlacementKind == LeeMapEditor::ELeePlacementKind::Hold && bPreviewActive && Anchor.bValid)
-	{
-		if (IsMainFaceWithinTolerance(Anchor.Normal))
-		{
-			StatusText += TEXT("抓点朝向检查：通过\n");
-		}
-		else
-		{
-			StatusText += FString::Printf(TEXT("抓点朝向检查：未通过——%s\n"), *MainFaceCheckRejectText());
-		}
-	}
+	// 2026.11.27 李奕勋 start
+	/**
+	 * @brief 朝向ロック撤回に伴い、パネル状態表示への「抓点朝向检查」行の出力を止めた。
+	 *        元のコードは消さない。
+	 */
+	//if (PlacementKind == LeeMapEditor::ELeePlacementKind::Hold && bPreviewActive && Anchor.bValid)
+	//{
+	//	if (IsMainFaceWithinTolerance(Anchor.Normal))
+	//	{
+	//		StatusText += TEXT("抓点朝向检查：通过\n");
+	//	}
+	//	else
+	//	{
+	//		StatusText += FString::Printf(TEXT("抓点朝向检查：未通过——%s\n"), *MainFaceCheckRejectText());
+	//	}
+	//}
+	// 2026.11.27 李奕勋 end
 	// 2026.11.25 Lee end
 
 	if (bUsingFallbackHoldClass)
@@ -1420,7 +1464,11 @@ void FLeeMapEditorTool::BeginPreviewFromHit(const FHitResult& InHit)
 	Anchor.Component = InHit.Component;
 	Anchor.Point = InHit.ImpactPoint;
 	Anchor.Normal = InHit.ImpactNormal.GetSafeNormal();
-	Anchor.RecomputeAxes();
+	// 2026.11.27 李奕勋 start
+	// 配置フロー：現在の配置種別を渡し、抓点モードでは近水平面でも右手系の面内基底を使う
+	//Anchor.RecomputeAxes();←元のコードは消さない
+	Anchor.RecomputeAxes(PlacementKind == LeeMapEditor::ELeePlacementKind::Hold);
+	// 2026.11.27 李奕勋 end
 	ValidatedSurfacePoint = InHit.ImpactPoint;
 	ValidOffsetU = 0.0;
 	ValidOffsetV = 0.0;
