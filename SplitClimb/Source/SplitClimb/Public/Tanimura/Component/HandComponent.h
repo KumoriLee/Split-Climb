@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
+#include "Engine/EngineTypes.h"
 #include "HandComponent.generated.h"
 
 // 掌の左右を区別する
@@ -36,6 +37,18 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Hand")
 	bool bGrabHeld = false;
 
+	// 実際に掴めているか
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Hand")
+	bool bIsGrabbing = false;
+
+	// 掴んでいる面の位置
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Hand")
+	FVector GrabLocation = FVector::ZeroVector;
+
+	// 掴んでいる面の法線
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Hand")
+	FVector GrabNormal = FVector::ForwardVector;
+
 	// 入力値を設定する
 	UFUNCTION(BlueprintCallable, Category = "Hand")
 	void SetMoveInput(const FVector2D& InMoveInput);
@@ -59,4 +72,28 @@ public:
 	// 掴み状態を取得する
 	UFUNCTION(BlueprintPure, Category = "Hand")
 	bool IsGrabHeld() const;
+
+	// 掌の位置から掴める面を探して掴む
+	UFUNCTION(BlueprintCallable, Category = "Hand")
+	bool TryGrab(const FVector& TraceDirection, float ReachDistance, float SurfaceOffset, ECollisionChannel TraceChannel);
+
+	// 掴みを解除する
+	UFUNCTION(BlueprintCallable, Category = "Hand")
+	void ReleaseGrab();
+
+	// 掴んでいるかを取得する
+	UFUNCTION(BlueprintPure, Category = "Hand")
+	bool IsGrabbing() const;
+
+	// 掴んでいる位置を取得する
+	UFUNCTION(BlueprintPure, Category = "Hand")
+	FVector GetGrabLocation() const;
+
+	// 掴んでいる面の法線を取得する
+	UFUNCTION(BlueprintPure, Category = "Hand")
+	FVector GetGrabNormal() const;
+
+private:
+	// 掌を肩からの可動半径へ収める
+	void ClampToMoveRadius(const FVector& ShoulderWorldLocation, float MaxRadius);
 };
