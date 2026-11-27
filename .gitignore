@@ -1,9 +1,19 @@
 Binaries
 Build/
+# Windows 游戏图标由 Unreal Engine 从项目的 Build 目录读取。
+!/SplitClimb/Build/
+/SplitClimb/Build/*
+!/SplitClimb/Build/Windows/
+/SplitClimb/Build/Windows/*
+!/SplitClimb/Build/Windows/Application.ico
 DerivedDataCache
 Intermediate
 Saved
 Art
+# 保留游戏图标的界面纹理源图。
+!/Art/
+/Art/*
+!/Art/T_SplitClimb_Icon.png
 .claudeignore
 .vscode
 .vs
