@@ -1,0 +1,19 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "SplitClimb Map Editor",
+	"Description": "Editor-only level dressing tool for Split Climb: places climbing grip holds and native rock assets on surfaces with live preview, measurement and collision checks.",
+	"Category": "Level Editing",
+	"CreatedBy": "Lee",
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "SplitClimbMapEditor",
+			"Type": "EditorNoCommandlet",
+			"LoadingPhase": "PostEngineInit"
+		}
+	]
+}
