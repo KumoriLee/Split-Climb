@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Engine/EngineTypes.h"
 #include "ClimbSettings.generated.h"
 
 /**
@@ -41,4 +42,24 @@ public:
 	// 落下距離
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Fall", meta = (ClampMin = "0.0"))
 	float FallDistance = 200.f;
+
+	// 掴み判定に使うトレースチャンネル
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Grab")
+	TEnumAsByte<ECollisionChannel> GrabTraceChannel = ECC_GameTraceChannel1;
+
+	// 掴み判定を探す距離
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Grab", meta = (ClampMin = "0.0"))
+	float GrabReach = 120.f;
+
+	// 掴んだ掌を面から浮かせる距離
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Grab", meta = (ClampMin = "0.0"))
+	float GrabSurfaceOffset = 2.f;
+
+	// 体と掌の最大距離
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Body", meta = (ClampMin = "0.0"))
+	float MaxHandBodyDistance = 90.f;
+
+	// 掴んでいる間の落下速度の上限
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Fall", meta = (ClampMin = "0.0"))
+	float MaxFallSpeed = 500.f;
 };

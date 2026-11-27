@@ -11,6 +11,7 @@
 #include "GameFramework/PlayerController.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 AClimbCharacter::AClimbCharacter()
 {
@@ -84,6 +85,9 @@ void AClimbCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	// 掴んでいる掌の入力で体を動かす
+	UpdateBodyMovement(DeltaSeconds);
+
 	// 掌の移動を更新する
 	UpdateHandMovement(DeltaSeconds);
 
@@ -138,11 +142,8 @@ void AClimbCharacter::UpdateHandMovement(float DeltaTime)
 		return;
 	}
 
-	// 設定アセットが無い場合はクラス既定値を使う
-	const UClimbSettings* Settings = ClimbSettings.Get();
-	if (!Settings) {
-		Settings = GetDefault<UClimbSettings>();
-	}
+	// 壁登りの設定値を取得する
+	const UClimbSettings* Settings = GetClimbSettings();
 
 	// 肩ボーンのワールド位置を基準にする
 	const FVector LeftShoulderLocation = GetShoulderWorldLocation(true);
@@ -152,9 +153,20 @@ void AClimbCharacter::UpdateHandMovement(float DeltaTime)
 	RightHand->MoveHand(RightHand->GetMoveInput(), Settings->HandMoveSpeed, Settings->MaxHandMoveRadius, RightShoulderLocation, DeltaTime);
 
 	// 掌の向きを肩から掌への方向と壁の法線から決める
-	const FVector PalmNormal = GetActorTransform().TransformVectorNoScale(PalmNormalDirection).GetSafeNormal();
-	LeftHand->UpdateHandRotation(LeftShoulderLocation, PalmNormal, LeftHandRotationOffset);
-	RightHand->UpdateHandRotation(RightShoulderLocation, PalmNormal, RightHandRotationOffset);
+	// 掴んでいない掌は体の向きを基準にする
+	FVector LeftPalmNormal = GetPalmNormalWorld();
+	FVector RightPalmNormal = GetPalmNormalWorld();
+
+	// 掴んでいる掌は掴んだ面へ掌を向ける
+	if (LeftHand->IsGrabbing()) {
+		LeftPalmNormal = -LeftHand->GetGrabNormal();
+	}
+	if (RightHand->IsGrabbing()) {
+		RightPalmNormal = -RightHand->GetGrabNormal();
+	}
+
+	LeftHand->UpdateHandRotation(LeftShoulderLocation, LeftPalmNormal, LeftHandRotationOffset);
+	RightHand->UpdateHandRotation(RightShoulderLocation, RightPalmNormal, RightHandRotationOffset);
 }
 
 FVector AClimbCharacter::GetShoulderWorldLocation(bool bLeft) const
@@ -243,30 +255,216 @@ void AClimbCharacter::OnRightHandMoveCompleted(const FInputActionValue&)
 
 void AClimbCharacter::OnLeftGrabStarted(const FInputActionValue&)
 {
-	// 左手の掴み状態を有効にする
-	LeftHand->SetGrabHeld(true);
-	UE_LOG(LogTemp, Log, TEXT("Left hand grab: pressed"));
+	// 左手で掴みを試みる
+	HandleGrabStarted(LeftHand);
 }
 
 void AClimbCharacter::OnLeftGrabCompleted(const FInputActionValue&)
 {
-	// 左手の掴み状態を解除する
-	LeftHand->SetGrabHeld(false);
-	UE_LOG(LogTemp, Log, TEXT("Left hand grab: released"));
+	// 左手の掴みを解除する
+	HandleGrabCompleted(LeftHand);
 }
 
 void AClimbCharacter::OnRightGrabStarted(const FInputActionValue&)
 {
-	// 右手の掴み状態を有効にする
-	RightHand->SetGrabHeld(true);
-	UE_LOG(LogTemp, Log, TEXT("Right hand grab: pressed"));
+	// 右手で掴みを試みる
+	HandleGrabStarted(RightHand);
 }
 
 void AClimbCharacter::OnRightGrabCompleted(const FInputActionValue&)
 {
-	// 右手の掴み状態を解除する
-	RightHand->SetGrabHeld(false);
-	UE_LOG(LogTemp, Log, TEXT("Right hand grab: released"));
+	// 右手の掴みを解除する
+	HandleGrabCompleted(RightHand);
+}
+
+void AClimbCharacter::HandleGrabStarted(UHandComponent* Hand)
+{
+	if (!Hand) {
+		return;
+	}
+
+	// ボタンを押している間であることを記録する
+	Hand->SetGrabHeld(true);
+
+	const UClimbSettings* Settings = GetClimbSettings();
+
+	// 掌の位置から掴める面を探す
+	const bool bGrabbed = Hand->TryGrab(GetPalmNormalWorld(), Settings->GrabReach, Settings->GrabSurfaceOffset, Settings->GrabTraceChannel);
+
+	// 掴めた場合だけ体の保持へ切り替える
+	if (bGrabbed) {
+		FallSpeed = 0.f;
+		UpdateMovementMode();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("%s hand grab: %s"), Hand == LeftHand.Get() ? TEXT("Left") : TEXT("Right"), bGrabbed ? TEXT("grabbed") : TEXT("missed"));
+}
+
+void AClimbCharacter::HandleGrabCompleted(UHandComponent* Hand)
+{
+	if (!Hand) {
+		return;
+	}
+
+	Hand->SetGrabHeld(false);
+
+	// 掴んでいた場合は掴みを解除する
+	if (Hand->IsGrabbing()) {
+		Hand->ReleaseGrab();
+		UpdateMovementMode();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("%s hand grab: released"), Hand == LeftHand.Get() ? TEXT("Left") : TEXT("Right"));
+}
+
+bool AClimbCharacter::HasGrabbingHand() const
+{
+	return (LeftHand && LeftHand->IsGrabbing()) || (RightHand && RightHand->IsGrabbing());
+}
+
+void AClimbCharacter::UpdateBodyMovement(float DeltaTime)
+{
+	const UClimbSettings* Settings = GetClimbSettings();
+
+	// 掴んでいない間は重力に任せる
+	if (!HasGrabbingHand()) {
+		FallSpeed = 0.f;
+		return;
+	}
+
+	const FRotator BodyRotation = GetActorRotation();
+
+	// 掴んでいる掌の入力から体に加わる力を合成する
+	FVector PullDirection = FVector::ZeroVector;
+	UHandComponent* Hands[] = { LeftHand.Get(), RightHand.Get() };
+	for (UHandComponent* Hand : Hands) {
+		if (!Hand || !Hand->IsGrabbing() || !Hand->IsGrabHeld()) {
+			continue;
+		}
+
+		// スティック入力と逆向きのベクトルを加える
+		const FVector2D Input = Hand->GetMoveInput();
+		PullDirection += BodyRotation.RotateVector(FVector(0.f, -Input.X, -Input.Y));
+	}
+
+	// 合成した力の大きさを1に収める
+	if (PullDirection.SizeSquared() > 1.f) {
+		PullDirection.Normalize();
+	}
+
+	// 引き上げ中は手が重力に抗い、それ以外は重力で落ちる
+	const bool bPullingUp = PullDirection.Z > KINDA_SMALL_NUMBER;
+	if (bPullingUp) {
+		FallSpeed = 0.f;
+	} else {
+		FallSpeed = FMath::Min(FallSpeed + GetGravityAcceleration() * DeltaTime, Settings->MaxFallSpeed);
+	}
+
+	// スティックの引きと重力を合成して体を動かす
+	FVector Delta = PullDirection * Settings->PullSpeed * DeltaTime;
+	Delta.Z -= FallSpeed * DeltaTime;
+
+	FHitResult Hit;
+	if (!Delta.IsNearlyZero()) {
+		AddActorWorldOffset(Delta, true, &Hit, ETeleportType::None);
+
+		// 床に阻まれた場合は落下速度を止める
+		if (Hit.bBlockingHit && Delta.Z < 0.f) {
+			FallSpeed = 0.f;
+		}
+	}
+
+	// 掴んだ掌が体を支えた場合は落下速度を止める
+	if (SolveGrabConstraints(Settings->MaxHandBodyDistance)) {
+		FallSpeed = 0.f;
+	}
+}
+
+bool AClimbCharacter::SolveGrabConstraints(float MaxDistance)
+{
+	bool bSupported = false;
+
+	// 腕の長さの制約を複数回の反復で満たす
+	for (int32 Iteration = 0; Iteration < 3; ++Iteration) {
+		bool bCorrected = false;
+		UHandComponent* Hands[] = { LeftHand.Get(), RightHand.Get() };
+
+		for (UHandComponent* Hand : Hands) {
+			if (!Hand || !Hand->IsGrabbing()) {
+				continue;
+			}
+
+			const FVector ShoulderLocation = GetShoulderWorldLocation(Hand == LeftHand.Get());
+			const FVector ArmVector = ShoulderLocation - Hand->GetGrabLocation();
+			const FVector GrabNormal = Hand->GetGrabNormal();
+
+			// 面の法線方向は壁に阻まれるため、面に沿った距離だけで制約する
+			const double NormalDistance = FVector::DotProduct(ArmVector, GrabNormal);
+			const FVector PlanarOffset = ArmVector - GrabNormal * NormalDistance;
+			const double PlanarDistance = PlanarOffset.Size();
+			const double MaxDistanceSquared = static_cast<double>(MaxDistance) * MaxDistance;
+			const double PlanarMax = FMath::Sqrt(FMath::Max(0.0, MaxDistanceSquared - NormalDistance * NormalDistance));
+
+			// 腕の長さを超えた分だけ体を掌へ引き戻す
+			if (PlanarDistance > PlanarMax && PlanarDistance > KINDA_SMALL_NUMBER) {
+				AddActorWorldOffset(PlanarOffset / PlanarDistance * (PlanarMax - PlanarDistance), true, nullptr, ETeleportType::None);
+				bCorrected = true;
+				bSupported = true;
+			}
+		}
+
+		// 補正が無ければ反復を打ち切る
+		if (!bCorrected) {
+			break;
+		}
+	}
+
+	return bSupported;
+}
+
+void AClimbCharacter::UpdateMovementMode()
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (!Movement) {
+		return;
+	}
+
+	if (HasGrabbingHand()) {
+		// 掴んでいる間は手動の重力で動かす
+		Movement->StopMovementImmediately();
+		Movement->SetMovementMode(MOVE_None);
+	} else {
+		// 全ての手を離したら重力で落下させる
+		Movement->SetMovementMode(MOVE_Falling);
+		Movement->Velocity.Z = -FallSpeed;
+		FallSpeed = 0.f;
+	}
+}
+
+FVector AClimbCharacter::GetPalmNormalWorld() const
+{
+	return GetActorTransform().TransformVectorNoScale(PalmNormalDirection).GetSafeNormal();
+}
+
+const UClimbSettings* AClimbCharacter::GetClimbSettings() const
+{
+	const UClimbSettings* Settings = ClimbSettings.Get();
+	if (!Settings) {
+		Settings = GetDefault<UClimbSettings>();
+	}
+	return Settings;
+}
+
+float AClimbCharacter::GetGravityAcceleration() const
+{
+	const UCharacterMovementComponent* Movement = GetCharacterMovement();
+
+	// 移動コンポーネントが無い場合は既定の重力を使う
+	if (!Movement) {
+		return 980.f;
+	}
+
+	return FMath::Abs(Movement->GetGravityZ());
 }
 
 void AClimbCharacter::DrawHandDebug() const
@@ -276,11 +474,8 @@ void AClimbCharacter::DrawHandDebug() const
 		return;
 	}
 
-	// 設定アセットが無い場合はクラス既定値を使う
-	const UClimbSettings* Settings = ClimbSettings.Get();
-	if (!Settings) {
-		Settings = GetDefault<UClimbSettings>();
-	}
+	// 壁登りの設定値を取得する
+	const UClimbSettings* Settings = GetClimbSettings();
 
 	// 壁面内の可動範囲を表示する
 	const float MaxRadius = Settings->MaxHandMoveRadius;
@@ -297,7 +492,11 @@ void AClimbCharacter::DrawHandDebug() const
 
 	// 入力値と掴み状態を画面に表示する
 	if (GEngine) {
-		GEngine->AddOnScreenDebugMessage(1, 0.f, FColor::Cyan, FString::Printf(TEXT("L Move (%.2f, %.2f) Grab %s"), LeftHand->GetMoveInput().X, LeftHand->GetMoveInput().Y, LeftHand->IsGrabHeld() ? TEXT("ON") : TEXT("OFF")));
-		GEngine->AddOnScreenDebugMessage(2, 0.f, FColor::Orange, FString::Printf(TEXT("R Move (%.2f, %.2f) Grab %s"), RightHand->GetMoveInput().X, RightHand->GetMoveInput().Y, RightHand->IsGrabHeld() ? TEXT("ON") : TEXT("OFF")));
+		// 掴み状態と肩から掌までの距離を表示する
+		const float LeftArmDistance = LeftHand->IsGrabbing() ? (LeftShoulderLocation - LeftHand->GetGrabLocation()).Size() : 0.f;
+		const float RightArmDistance = RightHand->IsGrabbing() ? (RightShoulderLocation - RightHand->GetGrabLocation()).Size() : 0.f;
+		GEngine->AddOnScreenDebugMessage(1, 0.f, FColor::Cyan, FString::Printf(TEXT("L Move (%.2f, %.2f) Held %s Grab %s Arm %.0f"), LeftHand->GetMoveInput().X, LeftHand->GetMoveInput().Y, LeftHand->IsGrabHeld() ? TEXT("ON") : TEXT("OFF"), LeftHand->IsGrabbing() ? TEXT("ON") : TEXT("OFF"), LeftArmDistance));
+		GEngine->AddOnScreenDebugMessage(2, 0.f, FColor::Orange, FString::Printf(TEXT("R Move (%.2f, %.2f) Held %s Grab %s Arm %.0f"), RightHand->GetMoveInput().X, RightHand->GetMoveInput().Y, RightHand->IsGrabHeld() ? TEXT("ON") : TEXT("OFF"), RightHand->IsGrabbing() ? TEXT("ON") : TEXT("OFF"), RightArmDistance));
+		GEngine->AddOnScreenDebugMessage(3, 0.f, FColor::White, FString::Printf(TEXT("FallSpeed %.0f"), FallSpeed));
 	}
 }

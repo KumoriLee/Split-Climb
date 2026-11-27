@@ -138,4 +138,34 @@ private:
 	void OnRightGrabCompleted(const FInputActionValue& Value);
 
 	void DrawHandDebug() const;
+
+	// 掴み入力の開始を処理する
+	void HandleGrabStarted(UHandComponent* Hand);
+
+	// 掴み入力の終了を処理する
+	void HandleGrabCompleted(UHandComponent* Hand);
+
+	// 掌が1本以上掴んでいるか
+	bool HasGrabbingHand() const;
+
+	// 掴んでいる掌の入力で体を動かす
+	void UpdateBodyMovement(float DeltaTime);
+
+	// 掴んだ掌から体が離れすぎないように補正する
+	bool SolveGrabConstraints(float MaxDistance);
+
+	// 掴み状態に応じて移動モードを切り替える
+	void UpdateMovementMode();
+
+	// 掌の法線方向をワールド空間で求める
+	FVector GetPalmNormalWorld() const;
+
+	// 壁登りの設定値を取得する
+	const UClimbSettings* GetClimbSettings() const;
+
+	// 重力加速度を取得する
+	float GetGravityAcceleration() const;
+
+	// 掴んでいる間の落下速度
+	float FallSpeed = 0.f;
 };
